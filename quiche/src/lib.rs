@@ -1355,6 +1355,9 @@ pub struct Connection {
     /// Packet number spaces.
     pkt_num_spaces: [packet::PktNumSpace; packet::Epoch::count()],
 
+    /// Next packet number.
+    next_pkt_num: u64,
+
     /// Peer's transport parameters.
     peer_transport_params: TransportParams,
 
@@ -1867,6 +1870,8 @@ impl Connection {
                 packet::PktNumSpace::new(),
                 packet::PktNumSpace::new(),
             ],
+
+            next_pkt_num: 0,
 
             peer_transport_params: TransportParams::default(),
 
@@ -3599,7 +3604,7 @@ impl Connection {
             b.cap()
         };
 
-        let pn = pkt_space.next_pkt_num;
+        let pn = self.next_pkt_num;
         let pn_len = packet::pkt_num_len(pn)?;
 
         // The AEAD overhead at the current encryption level.
@@ -4589,7 +4594,7 @@ impl Connection {
             path.recovery.delivery_rate_update_app_limited(true);
         }
 
-        pkt_space.next_pkt_num += 1;
+        self.next_pkt_num += 1;
 
         let handshake_status = recovery::HandshakeStatus {
             has_handshake_keys: self.pkt_num_spaces[packet::Epoch::Handshake]
@@ -8687,7 +8692,7 @@ pub mod testing {
 
             space.key_update = Some(packet::KeyUpdate {
                 crypto_open: open_prev.unwrap(),
-                pn_on_update: space.next_pkt_num,
+                pn_on_update: self.client.next_pkt_num,
                 update_acked: true,
                 timer: time::Instant::now(),
             });
@@ -8789,7 +8794,7 @@ pub mod testing {
 
         let space = &mut conn.pkt_num_spaces[epoch];
 
-        let pn = space.next_pkt_num;
+        let pn = conn.next_pkt_num;
         let pn_len = 4;
 
         let send_path = conn.paths.get_active()?;
@@ -8852,7 +8857,7 @@ pub mod testing {
             aead,
         )?;
 
-        space.next_pkt_num += 1;
+        conn.next_pkt_num += 1;
 
         Ok(written)
     }
@@ -11109,7 +11114,7 @@ mod tests {
 
         // Client acks RESET_STREAM frame.
         let mut ranges = ranges::RangeSet::default();
-        ranges.insert(0..6);
+        ranges.insert(pipe.server.next_pkt_num - 5..pipe.server.next_pkt_num);
 
         let frames = [frame::Frame::ACK {
             ack_delay: 15,
@@ -13451,7 +13456,7 @@ mod tests {
         for _ in 0..512 {
             let recv_count = pipe.server.recv_count;
 
-            last_packet_sent = pipe.client.pkt_num_spaces[epoch].next_pkt_num;
+            last_packet_sent = pipe.client.next_pkt_num;
 
             pipe.send_pkt_to_server(pkt_type, &frames, &mut buf)
                 .unwrap();
@@ -13459,7 +13464,7 @@ mod tests {
             assert_eq!(pipe.server.recv_count, recv_count + 1);
 
             // Skip packet number.
-            pipe.client.pkt_num_spaces[epoch].next_pkt_num += 1;
+            pipe.client.next_pkt_num += 1;
         }
 
         assert_eq!(
@@ -17130,7 +17135,7 @@ mod tests {
         let mut b = octets::OctetsMut::with_slice(&mut pkt_buf);
         let epoch = packet::Type::Short.to_epoch().unwrap();
         let space = &mut pipe.client.pkt_num_spaces[epoch];
-        let pn = space.next_pkt_num;
+        let pn = pipe.client.next_pkt_num;
         let pn_len = 4;
 
         let hdr = Header {
@@ -17166,7 +17171,7 @@ mod tests {
             aead,
         )
         .expect("packet encrypt");
-        space.next_pkt_num += 1;
+        pipe.client.next_pkt_num += 1;
 
         pipe.server
             .recv(&mut pkt_buf[..written], RecvInfo {
