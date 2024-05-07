@@ -7,6 +7,7 @@ name: Deploy
 
 env:
   RUSTDOCFLAGS: "--cfg docsrs"
+  TOOLCHAIN: "nightly"
 
 jobs:
   docs:
@@ -17,18 +18,14 @@ jobs:
         with:
           submodules: 'recursive'
 
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly
-          override: true
+      - name: Install toolchain
+        run: |
+          rustup update --no-self-update ${{ env.TOOLCHAIN }}
+          rustup component add --toolchain ${{ env.TOOLCHAIN }} clippy
+          rustup default ${{ env.TOOLCHAIN }}
 
       - name: Run cargo doc
-        uses: actions-rs/cargo@v1
-        with:
-          command: doc
-          args: --no-deps --all-features
+        run: cargo doc --no-deps --all-features
 
       - name: Deploy to GitHub Pages
         uses: crazy-max/ghaction-github-pages@v3
