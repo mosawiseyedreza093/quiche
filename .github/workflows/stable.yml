@@ -12,8 +12,7 @@ jobs:
     strategy:
       matrix:
         tls-feature:
-          - "" # default, boringssl-vendored
-          - "boringssl-boring-crate"
+          - "" # default, boringssl-boring-crate
           - "openssl"
     # Only run on "pull_request" event for external PRs. This is to avoid
     # duplicate builds for PRs created from internal branches.
@@ -240,11 +239,15 @@ jobs:
       - name: Extract NGINX sources
         run: tar xzf nginx-${{ matrix.version }}.tar.gz
 
+      - name: Clone BoringSSL
+        run: |
+          git clone https://github.com/google/boringssl
+
       - name: Build NGINX
         run: |
           cd nginx-${{ matrix.version }} &&
           patch -p01 < ../nginx/nginx-1.16.patch &&
-          ./configure --with-http_ssl_module --with-http_v2_module --with-http_v3_module --with-openssl="${{ github.workspace }}/quiche/deps/boringssl" --with-quiche="${{ github.workspace }}" --with-debug &&
+          ./configure --with-http_ssl_module --with-http_v2_module --with-http_v3_module --with-openssl="${{ github.workspace }}/boringssl" --with-quiche="${{ github.workspace }}" --with-debug &&
           make -j`nproc` &&
           objs/nginx -V
 
