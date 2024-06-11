@@ -23,10 +23,10 @@ pub struct SendMsgCmsgSettings {
 
 /// Settings for handling control messages when receiving data.
 #[cfg(target_os = "linux")]
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct RecvMsgCmsgSettings {
-    store_cmsgs: bool,
-    cmsg_space: Vec<u8>,
+    pub store_cmsgs: bool,
+    pub cmsg_space: Vec<u8>,
 }
 
 /// Output of a `recvmsg` call.

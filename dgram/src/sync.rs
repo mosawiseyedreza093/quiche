@@ -14,8 +14,10 @@ pub fn send_to(
     let sent = send_msg(fd, send_buf, sendmsg_settings);
 
     match sent {
+        Ok(s) => Ok(s),
+        // TODO: propagate or transform?
         Err(Errno::EAGAIN) => Err(std::io::Error::last_os_error()),
-        _ => Ok(sent?),
+        Err(e) => Err(e.into()),
     }
 }
 
@@ -32,11 +34,13 @@ pub fn recv_from(
     );
 
     match recvd {
+        Ok(r) => Ok(r),
         Err(Errno::EAGAIN) => Err(std::io::Error::last_os_error()),
-        _ => Ok(recvd?),
+        Err(e) => Err(e.into()),
     }
 }
 
+// TODO: these async functions shouldn't be here
 #[cfg(not(target_os = "linux"))]
 pub async fn send_to(
     socket: &UdpSocket, client_addr: SocketAddr, send_buf: &[u8],

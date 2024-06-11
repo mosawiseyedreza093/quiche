@@ -38,7 +38,16 @@ pub fn detect_gso(socket: &mio::net::UdpSocket, segment_size: usize) -> bool {
     // mio::net::UdpSocket doesn't implement AsFd (yet?).
     let fd = unsafe { std::os::fd::BorrowedFd::borrow_raw(socket.as_raw_fd()) };
 
-    setsockopt(&fd, UdpGsoSegment, &(segment_size as i32)).is_ok()
+    match setsockopt(&fd, UdpGsoSegment, &(segment_size as i32)) {
+        Ok(_) => {
+            debug!("Successfully set UDP_SEGMENT socket option");
+            true
+        },
+        Err(e) => {
+            debug!("Setting UDP_SEGMENT failed: {:?}", e);
+            false
+        },
+    }
 }
 
 /// For non-Linux, there is no GSO support.
@@ -63,23 +72,17 @@ fn send_to_gso_pacing(
         ..Default::default()
     };
 
-    loop {
-        // Important to use try_io so events keep coming even if we see
-        // EAGAIN/EWOULDBLOCK
-        let res = socket.try_io(|| {
-            // mio::net::UdpSocket doesn't implement AsFd (yet?).
-            let fd = unsafe {
-                std::os::fd::BorrowedFd::borrow_raw(socket.as_raw_fd())
-            };
+    // Important to use try_io so events keep coming even if we see
+    // EAGAIN/EWOULDBLOCK
+    socket.try_io(|| {
+        // mio::net::UdpSocket doesn't implement AsFd (yet?).
+        let fd =
+            unsafe { std::os::fd::BorrowedFd::borrow_raw(socket.as_raw_fd()) };
 
-            dgram::sync::send_to(&fd, buf, sendmsg_settings)
-        });
-
-        // TODO: make sure error cases are the same
-        if res.is_ok() {
-            return res;
-        }
-    }
+        // TODO: make sure this actually errors properly, pretty sure there
+        // was some weirdness with the `Blocked` error
+        dgram::sync::send_to(&fd, buf, sendmsg_settings)
+    })
 }
 
 /// For non-Linux platforms.
@@ -88,7 +91,7 @@ fn send_to_gso_pacing(
     _socket: &mio::net::UdpSocket, _buf: &[u8], _send_info: &quiche::SendInfo,
     _segment_size: usize,
 ) -> io::Result<usize> {
-    panic!("send_to_gso() should not be called on non-linux platforms");
+    panic!("send_to_gso_pacing() should not be called on non-linux platforms");
 }
 
 /// A wrapper function of send_to().
