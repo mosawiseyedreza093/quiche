@@ -62,10 +62,10 @@ fn send_to_gso_pacing(
     socket: &mio::net::UdpSocket, buf: &[u8], send_info: &quiche::SendInfo,
     segment_size: usize,
 ) -> io::Result<usize> {
-    use dgram::SendMsgCmsgSettings;
+    use dgram::SendMsgSettings;
     use std::os::unix::io::AsRawFd;
 
-    let sendmsg_settings = SendMsgCmsgSettings {
+    let sendmsg_settings = SendMsgSettings {
         segment_size: Some(segment_size as u16),
         tx_time: Some(send_info.at),
         dst: Some(send_info.to),

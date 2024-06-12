@@ -8,31 +8,64 @@ use std::net::SocketAddr;
 use std::time::Instant;
 use std::time::SystemTime;
 
+use libc::in6_pktinfo;
+use libc::in_pktinfo;
+use libc::sockaddr_in;
+use libc::sockaddr_in6;
 use nix::sys::socket::ControlMessageOwned;
+use nix::sys::socket::MsgFlags;
 
+/// Settings for handling control messages when sending data.
 #[cfg(target_os = "linux")]
 #[derive(Default, Copy, Clone)]
-pub struct SendMsgCmsgSettings {
-    /// Segment sized used in a UDP_SEGMENT message
+pub struct SendMsgSettings {
+    /// Segment sized used in a UDP_SEGMENT control message
     pub segment_size: Option<u16>,
-    /// Send time used in a TX_TIME message
+    /// Send time used in a TX_TIME control message
     pub tx_time: Option<Instant>,
     /// Destination socket address
     pub dst: Option<SocketAddr>,
+    /// Packet info used in an IP_PKTINFO control message
+    pub pkt_info: Option<IpPktInfo>,
 }
 
 /// Settings for handling control messages when receiving data.
 #[cfg(target_os = "linux")]
-#[derive(Clone, Default)]
-pub struct RecvMsgCmsgSettings {
+#[derive(Clone)]
+pub struct RecvMsgSettings {
+    // TODO(evanrittenhouse): deprecate store_cmsgs and only store based on what
+    // cmsg_space can handle.
+    /// If cmsgs should be stored when receiving a message. If set, cmsgs will
+    /// be stored in the `cmsg_space` vector.
     pub store_cmsgs: bool,
+    /// The vector where cmsgs will be stored, if store_cmsgs is set.
+    ///
+    /// It is the caller's responsibility to create and clear the vector. The
+    /// `nix` crate recommends that the space be created with the
+    /// [`cmsg_space`] macro.
+    ///
+    /// [`cmsg_space`]: https://docs.rs/nix/latest/nix/macro.cmsg_space.html
     pub cmsg_space: Vec<u8>,
+    /// Flags for [`recvmsg`]. See [MsgFlags] for more.
+    ///
+    /// [`recvmsg`]: [nix::sys::socket::recvmsg]
+    pub msg_flags: MsgFlags,
+}
+
+impl Default for RecvMsgSettings {
+    fn default() -> Self {
+        Self {
+            msg_flags: MsgFlags::empty(),
+            store_cmsgs: false,
+            cmsg_space: vec![],
+        }
+    }
 }
 
 /// Output of a `recvmsg` call.
 #[derive(Debug, Default)]
 pub struct RecvData {
-    /// The number of bytes which `recvmsg` returned.
+    /// The number of bytes returned by `recvmsg`.
     pub bytes: usize,
     /// The peer address for this message.
     pub peer_addr: Option<SocketAddr>,
@@ -44,9 +77,14 @@ pub struct RecvData {
     /// The `UDP_GRO_SEGMENTS` control message data from the result of
     /// `recvmsg`, if it exist.
     pub gro: Option<u16>,
-    /// The RX_TIME control message data from the result of `recvmsg`, if it
+    /// The `RX_TIME` control message data from the result of `recvmsg`, if it
     /// exists.
     pub rx_time: Option<SystemTime>,
+    /// The original IP destination address for the message.
+    ///
+    /// This can be either an IPv4 or IPv6 address, depending on whether
+    /// `IPV4_ORIGDSTADDR` or `IPV6_ORIGDSTADDR` was received.
+    pub original_addr: Option<IpOrigDstAddr>,
     cmsgs: Vec<ControlMessageOwned>,
 }
 
@@ -60,11 +98,13 @@ impl RecvData {
             metrics: None,
             gro: None,
             rx_time: None,
+            original_addr: None,
             cmsgs: Vec::with_capacity(cmsg_space_len),
         }
     }
 
-    pub fn from_bytes(bytes: usize) -> Self {
+    /// A constructor which only sets the `bytes` field.
+    pub fn with_bytes(bytes: usize) -> Self {
         Self {
             bytes,
             ..Default::default()
@@ -89,14 +129,26 @@ pub struct RecvMetrics {
     pub udp_packets_dropped: u64,
 }
 
+#[derive(Debug)]
+pub enum IpOrigDstAddr {
+    V4(sockaddr_in),
+    V6(sockaddr_in6),
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum IpPktInfo {
+    V4(in_pktinfo),
+    V6(in6_pktinfo),
+}
+
 #[cfg(target_os = "linux")]
 mod linux_imports {
     pub(super) use crate::syscalls::recv_msg;
     pub(super) use crate::syscalls::send_msg;
     pub(super) use crate::RecvData;
     pub(super) use crate::RecvMetrics;
-    pub(super) use crate::RecvMsgCmsgSettings;
-    pub(super) use crate::SendMsgCmsgSettings;
+    pub(super) use crate::RecvMsgSettings;
+    pub(super) use crate::SendMsgSettings;
     pub(super) use nix::errno::Errno;
     pub(super) use nix::sys::socket::getsockopt;
     pub(super) use nix::sys::socket::recvmsg;

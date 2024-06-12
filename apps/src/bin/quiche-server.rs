@@ -31,8 +31,6 @@ use std::io;
 
 use std::net;
 
-use std::os::fd::AsRawFd;
-
 use std::io::prelude::*;
 
 use std::collections::HashMap;
