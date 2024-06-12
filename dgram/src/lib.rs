@@ -31,12 +31,9 @@ pub struct SendMsgSettings {
 
 /// Settings for handling control messages when receiving data.
 #[cfg(target_os = "linux")]
-#[derive(Clone)]
-pub struct RecvMsgSettings {
-    // TODO(evanrittenhouse): deprecate store_cmsgs and only store based on what
-    // cmsg_space can handle.
+pub struct RecvMsgSettings<'c> {
     /// If cmsgs should be stored when receiving a message. If set, cmsgs will
-    /// be stored in the `cmsg_space` vector.
+    /// be stored in the [`RecvData`]'s `cmsgs` field.
     pub store_cmsgs: bool,
     /// The vector where cmsgs will be stored, if store_cmsgs is set.
     ///
@@ -45,19 +42,15 @@ pub struct RecvMsgSettings {
     /// [`cmsg_space`] macro.
     ///
     /// [`cmsg_space`]: https://docs.rs/nix/latest/nix/macro.cmsg_space.html
-    pub cmsg_space: Vec<u8>,
-    /// Flags for [`recvmsg`]. See [MsgFlags] for more.
-    ///
-    /// [`recvmsg`]: [nix::sys::socket::recvmsg]
-    pub msg_flags: MsgFlags,
+    pub cmsg_space: &'c mut Vec<u8>,
 }
 
-impl Default for RecvMsgSettings {
-    fn default() -> Self {
+impl<'c> RecvMsgSettings<'c> {
+    // Convenience to avoid forcing a specific version of nix
+    pub fn new(store_cmsgs: bool, cmsg_space: &'c mut Vec<u8>) -> Self {
         Self {
-            msg_flags: MsgFlags::empty(),
-            store_cmsgs: false,
-            cmsg_space: vec![],
+            store_cmsgs,
+            cmsg_space,
         }
     }
 }
@@ -172,11 +165,4 @@ mod linux_imports {
     pub(super) use std::net::SocketAddrV4;
     pub(super) use std::net::SocketAddrV6;
     pub(super) use std::os::fd::AsRawFd;
-}
-
-#[cfg(feature = "async")]
-mod async_imports {
-    pub(super) use std::io::ErrorKind;
-    pub(super) use tokio::io::Interest;
-    pub(super) use tokio::net::UdpSocket;
 }

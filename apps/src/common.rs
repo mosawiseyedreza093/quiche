@@ -629,10 +629,8 @@ impl HttpConn for Http09Conn {
                         s
                     );
 
-                    //                     let body =
-                    // std::fs::read(path.as_path())
-                    // .unwrap_or_else(|_| b"Not Found!\r\n".to_vec());
-                    let body = vec![0; 1_000_000];
+                    let body = std::fs::read(path.as_path())
+                        .unwrap_or_else(|_| b"Not Found!\r\n".to_vec());
 
                     info!(
                         "{} sending response of size {} on stream {}",
@@ -1094,7 +1092,7 @@ impl Http3Conn {
                 match std::fs::read(file_path.as_path()) {
                     Ok(data) => (200, data),
 
-                    Err(_) => (404, vec![57; 1_000_000]),
+                    Err(_) => (404, b"Not Found!".to_vec()),
                 }
             },
 

@@ -39,7 +39,10 @@ pub fn recv_from(
     use dgram::RecvMsgSettings;
     use std::os::unix::io::AsRawFd;
 
-    let mut recvmsg_cmsg_settings = RecvMsgSettings::default();
+    let mut recvmsg_cmsg_settings = RecvMsgSettings {
+        store_cmsgs: false,
+        cmsg_space: &mut vec![],
+    };
     socket.try_io(|| {
         let fd =
             unsafe { std::os::fd::BorrowedFd::borrow_raw(socket.as_raw_fd()) };

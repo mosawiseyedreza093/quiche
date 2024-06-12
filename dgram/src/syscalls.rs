@@ -89,10 +89,10 @@ pub fn send_msg(
 ///
 /// # Note
 ///
-/// It is the caller's responsibility to create the cmsg space. `nix` recommends
-/// that the space be created via the `cmsg_space!()` macro. Calling this
-/// function will clear the cmsg buffer. It is also the caller's responsibility
-/// to set any relevant socket options.
+/// It is the caller's responsibility to create and clear the cmsg space.`nix`
+/// recommends that the space be created via the `cmsg_space!()` macro. Calling
+/// this function will clear the cmsg buffer. It is also the caller's
+/// responsibility to set any relevant socket options.
 #[cfg(target_os = "linux")]
 pub fn recv_msg(
     fd: impl AsFd, read_buf: &mut [u8], recvmsg_settings: &mut RecvMsgSettings,
@@ -102,7 +102,6 @@ pub fn recv_msg(
     let RecvMsgSettings {
         store_cmsgs,
         ref mut cmsg_space,
-        msg_flags,
     } = recvmsg_settings;
 
     cmsg_space.clear();
@@ -115,7 +114,7 @@ pub fn recv_msg(
         borrowed.as_raw_fd(),
         iov_s,
         Some(cmsg_space),
-        *msg_flags,
+        MsgFlags::empty(),
     ) {
         Ok(r) => {
             let bytes = r.bytes;
@@ -137,7 +136,6 @@ pub fn recv_msg(
             };
 
             let mut recv_data = RecvData::new(peer_addr, bytes, cmsg_space_len);
-
             for msg in r.cmsgs() {
                 match msg {
                     ControlMessageOwned::ScmTimestampns(time) =>
@@ -260,8 +258,10 @@ mod tests {
         sendmsg(send.as_raw_fd(), &iov, &[], MsgFlags::empty(), Some(&addr))?;
 
         let mut read_buf = [0; 4];
-        let recv_data =
-            recv_msg(recv, &mut read_buf, &mut RecvMsgSettings::default())?;
+        let recv_data = recv_msg(recv, &mut read_buf, &mut RecvMsgSettings {
+            store_cmsgs: false,
+            cmsg_space: &mut vec![],
+        })?;
 
         assert_eq!(recv_data.bytes, 4);
         assert_eq!(&read_buf, b"jets");
@@ -317,11 +317,10 @@ mod tests {
         let iov = [IoSlice::new(send_buf)];
         sendmsg(send.as_raw_fd(), &iov, &[], MsgFlags::empty(), Some(&addr))?;
 
-        let cmsg_space = cmsg_space!(TimeVal);
+        let mut cmsg_space = cmsg_space!(TimeVal);
         let mut recvmsg_settings = RecvMsgSettings {
             store_cmsgs: true,
-            cmsg_space,
-            msg_flags: MsgFlags::empty(),
+            cmsg_space: &mut cmsg_space,
         };
 
         let mut read_buf = [0; 4];

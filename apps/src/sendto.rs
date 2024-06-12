@@ -79,8 +79,6 @@ fn send_to_gso_pacing(
         let fd =
             unsafe { std::os::fd::BorrowedFd::borrow_raw(socket.as_raw_fd()) };
 
-        // TODO: make sure this actually errors properly, pretty sure there
-        // was some weirdness with the `Blocked` error
         dgram::sync::send_to(&fd, buf, sendmsg_settings)
     })
 }
