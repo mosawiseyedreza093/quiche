@@ -1,5 +1,6 @@
 use dgram::RecvData;
 
+#[cfg(target_os = "linux")]
 use std::io;
 
 /// For Linux, try to detect if GRO is available. If it is, the
@@ -28,7 +29,7 @@ pub fn detect_gro(socket: &mio::net::UdpSocket) -> bool {
 }
 
 #[cfg(not(target_os = "linux"))]
-pub fn detect_gro(socket: &mio::net::UdpSocket, _segment_size: usize) -> bool {
+pub fn detect_gro(_socket: &mio::net::UdpSocket) -> bool {
     false
 }
 
@@ -52,7 +53,7 @@ pub fn recv_from(
 }
 
 #[cfg(not(target_os = "linux"))]
-fn recv_from(
+pub fn recv_from(
     socket: &mio::net::UdpSocket, buf: &mut [u8],
 ) -> std::io::Result<RecvData> {
     match socket.recv_from(buf) {

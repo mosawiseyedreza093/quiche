@@ -1,10 +1,9 @@
-use std::time::SystemTime;
-
 #[cfg(target_os = "linux")]
 mod linux {
     pub(super) use super::super::linux_imports::*;
     pub(super) use std::os::fd::AsFd;
     pub(super) use std::time::Instant;
+    pub(super) use std::time::SystemTime;
 
     pub(crate) type SyscallResult<T> = std::result::Result<T, Errno>;
 
@@ -17,6 +16,7 @@ mod linux {
 #[cfg(target_os = "linux")]
 use linux::*;
 
+#[cfg(target_os = "linux")]
 fn raw_send_to(
     fd: &impl AsFd, send_buf: &[u8], cmsgs: &[ControlMessage],
     msg_flags: MsgFlags, client_addr: Option<SockaddrStorage>,
@@ -27,7 +27,7 @@ fn raw_send_to(
     sendmsg(
         borrowed.as_raw_fd(),
         &iov,
-        &cmsgs,
+        cmsgs,
         msg_flags,
         client_addr.as_ref(),
     )

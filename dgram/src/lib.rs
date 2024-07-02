@@ -1,10 +1,12 @@
 pub mod socket_setup;
+#[cfg(target_os = "linux")]
 pub mod sync;
 mod syscalls;
 #[cfg(feature = "async")]
 pub mod tokio;
 
 use std::net::SocketAddr;
+#[cfg(target_os = "linux")]
 use std::time::Instant;
 use std::time::SystemTime;
 
@@ -13,7 +15,6 @@ use libc::in_pktinfo;
 use libc::sockaddr_in;
 use libc::sockaddr_in6;
 use nix::sys::socket::ControlMessageOwned;
-use nix::sys::socket::MsgFlags;
 
 /// Settings for handling control messages when sending data.
 #[cfg(target_os = "linux")]
@@ -45,6 +46,7 @@ pub struct RecvMsgSettings<'c> {
     pub cmsg_space: &'c mut Vec<u8>,
 }
 
+#[cfg(target_os = "linux")]
 impl<'c> RecvMsgSettings<'c> {
     // Convenience to avoid forcing a specific version of nix
     pub fn new(store_cmsgs: bool, cmsg_space: &'c mut Vec<u8>) -> Self {
